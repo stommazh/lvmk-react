@@ -1,0 +1,70 @@
+{
+  "name": "@lvmk/react",
+  "version": "1.0.0",
+  "description": "React hooks and utility functions",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./createStateManager": {
+      "import": "./dist/libs/createStateManager.js",
+      "types": "./dist/libs/createStateManager.d.ts"
+    },
+    "./createTranslator": {
+      "import": "./dist/libs/createTranslator.js",
+      "types": "./dist/libs/createTranslator.d.ts"
+    },
+    "./helpers": {
+      "import": "./dist/helpers/index.js",
+      "types": "./dist/helpers/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc && vite build",
+    "dev": "vite build --watch",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "react",
+    "hooks",
+    "utilities",
+    "typescript",
+    "state-management",
+    "i18n"
+  ],
+  "author": "Khang Le",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=16.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "react": "^18.2.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vite-plugin-dts": "^3.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "homepage": "",
+  "bugs": {
+    "url": ""
+  },
+  "dependencies": {
+    "immer": "^10.1.1"
+  }
+}
