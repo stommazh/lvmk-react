@@ -1,6 +1,6 @@
 # @lvmk/react
 
-Fast and easy-to-use React hooks library for state management and internationalization with **fine-grained rendering**, **strong TypeScript support** and **SSR ready**.
+State management + internationalization with **fine-grained rendering**, **strong TypeScript support** and **SSR ready**.
 
 ## Installation
 
