@@ -1,14 +1,6 @@
 # @lvmk/react
 
-Collection of hooks and utility functions library.
-
-## Features
-
-- 🚀 **Type-safe state management** with Immer integration
-- 🌍 **Internationalization (i18n)** with namespace support and React hooks
-- 🔄 **SSR support** for server-side rendering
-- 📦 **Tree-shakeable** ES modules
-- 🎯 **Full TypeScript support** with strict type checking
+Fast and easy-to-use React hooks library for state management and internationalization with **fine-grained rendering**, **strong TypeScript support** and **SSR supported**.
 
 ## Installation
 
@@ -16,313 +8,257 @@ Collection of hooks and utility functions library.
 npm install @lvmk/react
 ```
 
-## API Reference
+## State Management
 
-### State Management
-
-#### `createStateManager<State>(instanceId?: string)`
-
-Creates a comprehensive state management system using React Context and Immer for immutable updates.
-
-**Parameters:**
-- `instanceId` (optional): Unique identifier for the state manager instance
-
-**Returns:** Object containing:
-- `Provider`: React component to provide state context
-- `useState`: Hook for full state access (read + write + computed values)
-- `useStateValue`: Hook for read-only state access with computed values
-- `useSetState`: Hook for write-only state access
-- `useSnapshot`: Hook for synchronous state snapshot access
-- `StateSynchronizer`: Component for syncing external props to state
-- `withProvider`: HOC to automatically wrap components with state provider
-
-**Usage example:**
-1. Define the shape of your app/component state
 ```tsx
-// app-state.ts
 import { createStateManager } from '@lvmk/react'
 
-export interface AppState {
+// 1. Define your state shape
+interface AppState {
+  user: { name: string } | null
   theme: 'light' | 'dark'
-  language: 'en' | 'vi' | 'es'
-  user: { id: string; name: string } | null
+  todos: Array<{ id: string; text: string; done: boolean }>
 }
 
-export const { 
-  Provider, 
-  useState: useAppState, 
-  useSetState: useSetAppState, 
-  withProvider
-} = createStateManager<AppState>()
-```
-2. Use the `Provider` to wrap your app or component tree
-```tsx
-// app.tsx
+// 2. Create your state manager
+const { Provider, useState } = createStateManager<AppState>()
 
-import { Provider } from './app-state'
-
+// 3. Wrap your app
 function App() {
   return (
-    <Provider initialState={{ user: null, todos: [] }}>
-      <TodoApp />
-    </Provider>
-  )
-}
-```
-For Next.js, you can also fetch data from server-side and pass it to the `Provider`:
-```tsx
-// app.tsx (Next.js)
-import { cookies } from 'next/headers' 
-import {api} from '/api'
-
-async function App() {
-  const cookieStore = await cookies()
-  
-  return (
-    <Provider 
-      initialState={{ 
-          user: await api.get('/user'), 
-          todos: await api.get('/todos'),
-          theme: cookieStore.get('theme')?.value || 'light',
-        language: cookieStore.get('locale')?.value || 'en'
-    }}>
-      <TodoApp />
+    <Provider initialState={{ user: null, theme: 'light', todos: [] }}>
+      <TodoList />
+      <ThemeToggle />
     </Provider>
   )
 }
 
-```
-3. Access state in components using hooks
-```tsx
-// ManageTodo.tsx
-import { useAppState, AppState } from './app-state'
-
-const getUserAndTodos = (state: AppState) => ({
-  user: state.user,
-  todos: state.todos
-})
-
-function ManageTodo() {
-  const [{user, todos}, setState] = useAppState(getUserAndTodos)
+// 4. Use state in components
+function TodoList() {
+  // ✨ Only re-renders when todos change, not when theme changes
+  const [todos, setState] = useState(state => state.todos)
   
   const addTodo = (text: string) => {
-    const newTodo = { id: Date.now().toString(), text, completed: false }
-    /** 
-     * setState also return a function to revert changes if needed
-     * you can leaverage this to update state optimistically
-     * and revert if API call fails
-     * */
-    const revertAddTodo = setState(draft => {
-      draft.todos.push(newTodo)
+    setState(draft => {
+      draft.todos.push({ id: Date.now().toString(), text, done: false })
     })
-    api.post('/todos', newTodo).catch(revertAddTodo)
   }
   
-  if (!user) {
-    return <div>Please log in to manage todos.</div>
-  }
-
   return (
     <div>
-      <p>Todos: {todos.length}</p>
+      {todos.map(todo => <div key={todo.id}>{todo.text}</div>)}
       <button onClick={() => addTodo('New task')}>Add Todo</button>
     </div>
   )
 }
-```
 
-#### `withProvider(Component, options)`
-Useful if you want to access state directly without `Provider` and update state partially base on component props.
-
-```tsx
-import { withProvider, useAppState, AppState } from './app-state'
-
-function TodoList(props: AppState) {
-  const [todos, setState] = useAppState(state => state.todos)
-  // Rest of component...
-}
-
-export default withProvider(TodoList, {
-  initialState: { todos: [], theme: 'light' }, // you can provide initial state value from fetching API or other sources
-  // Optional - On component prop changed, update state
-  bindPropToState: (state, componentProps) => {
-    /** 
-     * When props changes, only update and re-render component if 'theme' value is different from previous
-     * This is useful for components that need to update its state based on external props
-     * */
-    state.theme = componentProps.theme || 'light'
-  }
-})
-```
-
-### Internationalization (i18n)
-
-#### `defineLocale<Language>()`
-
-Creates a locale-specific translation factory with full type safety for your supported languages.
-
-**Type Parameters:**
-- `Language`: Union type of supported language strings (e.g., `'en' | 'vi' | 'fr'`)
-
-**Returns:** Object containing utility functions:
-- `assertTranslation`: Type-safe translation definition helper
-- `createTranslatorHook`: Factory for creating React translation hooks
-- `createTranslator`: Language-specific translator function, useful for server-side rendering or non-React contexts
-
-#### Usage
-1. Define supported languages
-```tsx
-/** i18n/index.ts */
-
-import { defineLocale } from '@lvmk/react'
-
-type Language = 'en' | 'vi' | 'es'
-
-export const { assertTranslation, createTranslator, createTranslatorHook } = defineLocale<Language>()
-```
-2. Define translation
-```tsx
-/** i18n/translation/onboarding.ts */
-
-import {assertTranslation} from '../'
-
-export const ONBOARDING_TRANSLATION = assertTranslation({
-  welcome: {en: "Welcome", vi: "Chào mừng", es: "Bienvenido"},
-  greeting: {
-    en: "Hello name!",
-    vi: "Xin chào name!",
-    es: "¡Hola name!"
-  },
-  auth: {
-    login: {
-        en: "Login",
-        vi: "Đăng nhập",
-        es: "Iniciar sesión"
-    },
-    // other deeply nested translation texts
-  },
-  common: {
-    save: {
-        en: "Save",
-        vi: "Lưu",
-        es: "Guardar"
-    }
-    // deeply nested translation texts
-  },
-})
-```
-3. Define translator hook
-```tsx
-// For Next.js, remember to add 'use client' on top of the file
-import {createTranslatorHook, useAppStateValue} from '../'
-
-export const { useTranslator } = createTranslatorHook({
-  translation: ONBOARDING_TRANSLATION,
-  usePreferredLanguage: () => useAppStateValue(state => state.locale) // Optional - Use your preferred state management to get current language
-})
-```
-4. Use the translator hook in your components
-```tsx
-// LoginForm.tsx
-// 'use client' is required for Next.js components
-import { useAuthTranslator } from './i18n'
-import { useAppStateValue } from './app-state'
-
-function LoginPage() {
-  const { t, d, language } = useTranslator()
-  const currentUserName = useAppStateValue(state => state.user?.name || 'Guest')
+function ThemeToggle() {
+  // ✨ Only re-renders when theme changes, not when todos change
+  const [theme, setState] = useState(state => state.theme)
   
   return (
-    <div data-lang={language}>
-      <p>{t(d.greeting, { name: currentUserName })}</p>
-    </div>
+    <button onClick={() => setState(draft => { 
+      draft.theme = theme === 'light' ? 'dark' : 'light' 
+    })}>
+      Theme: {theme}
+    </button>
   )
 }
 ```
 
-#### Stateless translation on Server-Side Rendering (SSR)
+
+### Server-Side Rendering (Next.js)
 
 ```tsx
-// utils/i18n-server.ts
+// app/layout.tsx
 import { cookies } from 'next/headers'
-import { defineLocale } from '@lvmk/react'
 
-const { createTranslator } = defineLocale<Language>()
-
-export async function getServerTranslator() {
+async function RootLayout({ children }) {
   const cookieStore = await cookies()
-  const language = (cookieStore.get('language')?.value || 'en') as Language
-  return createTranslator(language)
-}
-```
-
-```tsx
-// page.tsx (Next.js App Router)
-import { getServerTranslator, translations } from './utils/i18n-server'
-
-export default async function HomePage() {
-  const t = await getServerTranslator()
-  
-  // Static render, content does not change on client even if language changes
+  const initialState = {
+    user: await fetchUser(),
+    theme: cookieStore.get('theme')?.value || 'light',
+    locale: cookieStore.get('locale')?.value || 'en'
+  }
   
   return (
-      <h1>{t(ONBOARDING_TRANSLATION.welcome)}</h1>
+    <Provider initialState={initialState}>
+      {children}
+    </Provider>
   )
 }
 ```
 
-**Namespace Optimization**
-```tsx
-// Only load specific namespaces for faster translation reference
-function AuthPage() {
-  const { t, d } = useTranslator('auth') // Only use auth namespace
-  return <div>{t(d.login)}</div> // d is now shorthand of ONBOARDING_TRANSLATION.auth
-}
 
-function MultiFeaturePage() {
-  const { t, d } = useTranslator(['auth', 'common']) // Multiple namespaces
+### 🎯 Fine-grained Rendering
+
+Components only re-render when the specific state slice they use changes:
+
+```tsx
+const [todos] = useState(state => state.todos)     // Only re-renders when todos change
+const [user] = useState(state => state.user)       // Only re-renders when user changes
+const [theme] = useState(state => state.theme)     // Only re-renders when theme changes
+```
+
+### ✨ Key Benefits
+
+#### 1. **Custom Selector Functions**
+The return value of the selector function passed to `useState` becomes the first value of the array, allowing you to customize the shape of values you want to extract or compute from the state, instead of using multiple `useState` calls:
+
+```tsx
+// Extract and compute specific values
+const [userInfo, setState] = useState(state => ({
+  name: state.user?.name || 'Guest',
+  isLoggedIn: !!state.user,
+  todoCount: state.todos.length,
+  completedTodos: state.todos.filter(todo => todo.done).length
+}))
+
+// Use computed values directly
+return (
+  <div>
+    <h1>Welcome, {userInfo.name}!</h1>
+    <p>You have {userInfo.todoCount} todos ({userInfo.completedTodos} completed)</p>
+  </div>
+)
+```
+
+#### 2. **Specialized Hooks**
+Besides `useState`, there are other hooks designed for specific purposes:
+
+- **`useSetState`** - Only provides the setState function, no value subscription
+- **`useStateValue`** - Only provides the state value, no setState function  
+- **`useSnapshot`** - Gets a snapshot of the current state without subscribing to changes
+
+#### 3. **Access to Latest State with getSnapshot**
+The third value returned from `useState` is `getSnapshot`, which returns the latest value of the state when called:
+
+```tsx
+function AsyncComponent() {
+  const [todos, setState, getSnapshot] = useState(state => state.todos)
+  
+  const handleAsyncOperation = async () => {
+    // Start with current todos
+    console.log('Current todos:', todos)
+    
+    // Perform async operation
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // Get the latest state (might have changed during async operation)
+    const latestState = getSnapshot()
+    console.log('Latest todos after delay:', latestState)
+    
+    // Use latest state for operation
+    setState(draft => {
+      draft.todos.push({
+        id: Date.now().toString(),
+        text: `Task created after ${latestState.length} existing todos`,
+        done: false
+      })
+    })
+  }
+  
   return (
     <div>
-      <button>{t(d.auth.login)}</button>
-      <button>{t(d.common.save)}</button>
+      <button onClick={handleAsyncOperation}>
+        Add Todo After Delay
+      </button>
+      {todos.map(todo => (
+        <div key={todo.id}>{todo.text}</div>
+      ))}
+    </div>
+  )
+}
+```
+### 💪 Strong TypeScript Support
+
+Get full IntelliSense and compile-time checks:
+
+```tsx
+// TypeScript knows the exact shape of your state
+const [userAndTodos] = useState(state => ({
+  user: state.user,     // ✅ TypeScript knows this exists
+  todos: state.todos    // ✅ TypeScript knows this exists
+  // missing: state.xyz  // ❌ TypeScript error - property doesn't exist
+}))
+```
+
+### 🔄 Optimistic Updates Made Easy
+
+```tsx
+const addTodo = async (text: string) => {
+  // Update UI immediately
+  const revert = setState(draft => {
+    draft.todos.push({ id: Date.now().toString(), text, done: false })
+  })
+  
+  try {
+    await api.createTodo(text)
+  } catch (error) {
+    revert() // Automatically revert on error
+    showError('Failed to create todo')
+  }
+}
+```
+
+
+## Translation
+
+```tsx
+import { defineLocale } from '@lvmk/react'
+
+// 1. Define supported languages
+type Language = 'en' | 'es'
+const { assertTranslation, createTranslatorHook } = defineLocale<Language>()
+
+// 2. Define translations with full type safety
+const messages = assertTranslation({
+  welcome: {
+    en: "Welcome, {name}!",
+    es: "¡Bienvenido, {name}!",
+  },
+  button: {
+    save: { en: "Save", es: "Guardar" }
+  }
+})
+
+// 3. Create translation hook
+const useTranslation = createTranslatorHook(messages)
+
+// 4. Use in components
+function Welcome({ userName }: { userName: string }) {
+  const t = useTranslation('en') // TypeScript suggests available languages
+  
+  return (
+    <div>
+      <h1>{t('welcome', { name: userName })}</h1> {/* TypeScript suggests available keys */}
+      <button>{t('button.save')}</button> {/* Nested keys work too! */}
     </div>
   )
 }
 ```
 
-**Dynamic Language Switching**
-```tsx
-// LanguageSwitcher.tsx
-import { useCurrentLanguage } from './i18n'
-import { useSetAppState } from './app-state'
+## API Reference
 
-function LanguageSwitcher() {
-  const { t, d, language } = useTranslator('common')
-  const setAppState = useSetAppState()
-  
-  const switchLanguage = (newLang: Language) => {
-    setAppState(draft => {
-      draft.language = newLang
-    })
-    document.cookie = `language=${newLang}; path=/`
-  }
-  
-  return (
-    <select value={language} onChange={(e) => switchLanguage(e.target.value as Language)}>
-      <option value="en">English</option>
-      <option value="vi">Tiếng Việt</option>
-    </select>
-  )
-}
-```
+### createStateManager\<State\>(instanceId?: string)
 
-## Type Safety
+Creates a type-safe state management system with fine-grained rendering.
 
-Both state management and internationalization systems provide full TypeScript support:
+**Returns:**
+- `Provider` - Wrap your app/component tree
+- `useState` - Access state with selector for fine-grained rendering
+- `useStateValue` - Read-only access to state
+- `useSetState` - Write-only access to state
+- `withProvider` - HOC for automatic provider wrapping
 
-- **State Management**: Automatic type inference for state shape and mutations
-- **Internationalization**: Compile-time validation of translation keys and language coverage
-- **IDE Support**: Full autocompletion and error checking
+### defineLocale\<Language\>()
+
+Creates type-safe internationalization utilities.
+
+**Returns:**
+- `assertTranslation` - Define translations with type safety
+- `createTranslatorHook` - Create React translation hooks
+- `createTranslator` - For server-side or non-React usage
 
 ## License
 

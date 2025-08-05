@@ -8,8 +8,8 @@
  * - Work seamlessly with React hooks pattern
  */
 
-import { useCallback } from 'react'
-import { TDeepReadonly } from '../helpers'
+import type { TDeepReadonly } from '../helpers'
+import {useCallback} from "react";
 
 /**
  * Generic translation item type that accepts any language enum/union
@@ -78,9 +78,17 @@ export const createTranslator = <Language extends string>(currentLanguage: Langu
       return matchedText
     }
     
+    // Create a case-insensitive lookup map for replacement values
+    const caseInsensitiveReplace = Object.fromEntries(
+      replaceKeys.map(key => [key.toLowerCase(), replace[key]])
+    )
+    
     // Create regex to match all replacement keys and substitute values
     const regex = new RegExp(replaceKeys.join('|'), 'gi')
-    return matchedText.replace(regex, (matched) => replace[matched].toString())
+    return matchedText.replace(regex, (matched) => {
+      const value = caseInsensitiveReplace[matched.toLowerCase()]
+      return value !== undefined ? value.toString() : matched
+    })
   }
 }
 
@@ -149,7 +157,7 @@ export const defineLocale = <Languages extends string>() => {
    * // translations.auth.login.fr // ❌ TypeScript error
    * ```
    */
-  function assertTranslation<T extends TranslationNamespace<Languages>>(translation: T): TDeepReadonly<T> {
+  function assertTranslation<T extends Record<string, LocalizedString<Languages> | TranslationNamespace<Languages>>>(translation: T): TDeepReadonly<T> {
     return translation as TDeepReadonly<T>
   }
   
@@ -222,25 +230,24 @@ export const defineLocale = <Languages extends string>() => {
    * }
    * ```
    */
-  function createTranslatorHook({
-                                                           translation,
-                                                           usePreferredLanguage
-                                                         }: {
-    translation: { [key in string]: LocalizedString<Languages> | TranslationNamespace<Languages> }
+  function createTranslatorHook<R extends Record<string, LocalizedString<Languages> | TranslationNamespace<Languages>>>({
+                                                                                                                          translation,
+                                                                                                                          usePreferredLanguage
+                                                                                                                        }: {
+    translation: R
     usePreferredLanguage: () => Languages
   }) {
-    type R = typeof translation
     
-    // Overload: No arguments - returns whole translation namespace
+    // Overload: No arguments - returns whole translation dictionary
     function useTranslator(): {
-      t: ReturnType<typeof createTranslator<Languages>>
+      t: ReturnType<typeof createTranslator>
       d: TDeepReadonly<R>
       language: Languages
     }
     
-    // Overload: Function selector - custom transformation of translation namespace
-    function useTranslator<S>(selector: (translation: TDeepReadonly<R>) => S): {
-      t: ReturnType<typeof createTranslator<Languages>>
+    // Overload: Function selector - custom transformation of dictionary
+    function useTranslator<S>(selector: (dict: TDeepReadonly<R>) => S): {
+      t: ReturnType<typeof createTranslator>
       d: TDeepReadonly<S>
       language: Languages
     }
@@ -249,7 +256,7 @@ export const defineLocale = <Languages extends string>() => {
     function useTranslator<K extends keyof R>(
       key: K
     ): {
-      t: ReturnType<typeof createTranslator<Languages>>
+      t: ReturnType<typeof createTranslator>
       d: TDeepReadonly<R[K]>
       language: Languages
     }
@@ -258,7 +265,7 @@ export const defineLocale = <Languages extends string>() => {
     function useTranslator<K extends keyof R>(
       selector: ReadonlyArray<K>
     ): {
-      t: ReturnType<typeof createTranslator<Languages>>
+      t: ReturnType<typeof createTranslator>
       d: { [P in K]: TDeepReadonly<R[P]> }
       language: Languages
     }
@@ -268,35 +275,35 @@ export const defineLocale = <Languages extends string>() => {
       firstKey: K,
       ...restKeys: K[]
     ): {
-      t: ReturnType<typeof createTranslator<Languages>>
+      t: ReturnType<typeof createTranslator>
       d: { [P in K]: TDeepReadonly<R[P]> }
       language: Languages
     }
     
     // Main implementation - handles all overload cases
     function useTranslator<S, K extends keyof R>(
-      selectorOrFirstKey?: ((translation: TDeepReadonly<R>) => S) | ReadonlyArray<K> | K,
+      selectorOrFirstKey?: ((dict: TDeepReadonly<R>) => S) | ReadonlyArray<K> | K,
       ...restKeys: K[]
     ) {
       const currentLanguage = usePreferredLanguage()
       const translateFnc = useCallback(() => createTranslator(currentLanguage), [currentLanguage])
-      const fullTranslationNamespace = translation as TDeepReadonly<R>
+      const fullDict = translation as TDeepReadonly<R>
       
-      // Case 1: No arguments - return full translation namespace
+      // Case 1: No arguments - return full dictionary
       if (selectorOrFirstKey === undefined) {
         return {
           t: translateFnc(),
-          d: fullTranslationNamespace,
+          d: fullDict,
           language: currentLanguage
         }
       }
       
       if (typeof selectorOrFirstKey === 'function') {
         // Case 2: Function selector - apply custom transformation
-        const selectedTranslationNamespace = selectorOrFirstKey(fullTranslationNamespace)
+        const selectedDict = selectorOrFirstKey(fullDict)
         return {
           t: translateFnc(),
-          d: selectedTranslationNamespace as TDeepReadonly<S>,
+          d: selectedDict as TDeepReadonly<S>,
           language: currentLanguage
         }
       } else {
@@ -305,23 +312,23 @@ export const defineLocale = <Languages extends string>() => {
         
         // Single key optimization - return namespace directly
         if (keys.length === 1) {
-          const key = keys[0]
+          const key: string = keys[0]
           return {
             t: translateFnc(),
-            d: fullTranslationNamespace[key as any] as TDeepReadonly<R[K]>,
+            d: fullDict[key as keyof typeof fullDict] as TDeepReadonly<R[K]>,
             language: currentLanguage
           }
         }
         
-        // Multiple keys - build subset of translation namespace
-        const selectedTranslationNamespace = {} as any
-        keys.forEach((key) => {
-          selectedTranslationNamespace[key] = fullTranslationNamespace[key as any]
+        // Multiple keys - build subset dictionary
+        const selectedDict: { [P in K]: TDeepReadonly<R[P]> } = {} as { [P in K]: TDeepReadonly<R[P]> }
+        keys.forEach((key: keyof typeof fullDict) => {
+          selectedDict[key as K] = fullDict[key as keyof typeof fullDict] as TDeepReadonly<R[K]>
         })
         
         return {
           t: translateFnc(),
-          d: selectedTranslationNamespace as { [P in K]: TDeepReadonly<R[P]> },
+          d: selectedDict as { [P in K]: TDeepReadonly<R[P]> },
           language: currentLanguage
         }
       }

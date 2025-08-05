@@ -13,23 +13,26 @@
  */
 
 import {
-  ComponentType,
   createContext,
   forwardRef,
   memo,
-  PropsWithChildren,
-  PropsWithoutRef,
   useCallback,
   useContext,
   useEffect,
   useRef,
   useSyncExternalStore
 } from 'react'
+import type {
+  ComponentType,
+  PropsWithChildren,
+  PropsWithoutRef
+} from 'react'
 // Dependencies
-import { comparePropsForMemo, createCacheStorage, deepClone } from '../helpers'
-import { applyPatches, Draft, produceWithPatches } from 'immer'
-import { TDeepMutable, TDeepReadonly } from '../helpers'
-import { enableMapSet, enablePatches } from 'immer'
+import {comparePropsForMemo, createCacheStorage, deepClone} from '../helpers'
+import {applyPatches, produceWithPatches} from 'immer'
+import type {Draft} from 'immer'
+import type {TDeepMutable, TDeepReadonly} from '../helpers'
+import {enableMapSet, enablePatches} from 'immer'
 
 // Enable Immer features for advanced state management
 enableMapSet()
@@ -113,8 +116,8 @@ const defaultComputeFunction: TDefaultComputeFunction = <Input, Output>(state: I
  * */
 export function createStateManager<State extends Record<string | number, unknown>>(instanceId?: string) {
   // Initialize caching system for performance optimization
-  const { cache, clear: clearCache, uid } = createCacheStorage()
-
+  const {cache, clear: clearCache, uid} = createCacheStorage()
+  
   /**
    * Creates unique cache identifiers for each hook instance
    * Prevents cache collisions between different component instances
@@ -124,30 +127,30 @@ export function createStateManager<State extends Record<string | number, unknown
     getSnapshotFunction: uid(),
     snapshotInstance: uid()
   })
-
+  
   // Unique identifier for this context instance (prevents conflicts in multi-context apps)
   const contextId = instanceId || uid()
-
+  
   /** Type definitions for internal operations */
-
+  
   /** Pure function that computes derived values from state */
   type TComputeFunction<ComputedValue> = (state: TDeepReadonly<State>) => ComputedValue
-
+  
   /** Function signature for getting state snapshots with optional computation */
   type TStateSnapshotGetter = {
     <ComputedSnapshotValue>(compute: (input: State) => ComputedSnapshotValue): ComputedSnapshotValue
     (): State
   }
-
+  
   /** Function signature for updating state (accepts partial state or Immer draft function) */
   type TStateSetter = <T extends Partial<State> | DraftFunction<State>>(
     valueOrUpdater: T
   ) => () => void
-
+  
   // State storage variables (different behavior for SSR vs client)
   let stateValue: State
   let StateHolderContext: ReturnType<typeof createContext<ReturnType<typeof useContextStateData> | null>>
-
+  
   /**
    * Initialize state storage with SSR support
    * - Server-side: Creates fresh state and context for each request
@@ -173,20 +176,20 @@ export function createStateManager<State extends Record<string | number, unknown
       typeof createContext<ReturnType<typeof useContextStateData> | null>
     >
   }
-
+  
   /**
    * Hook to access the state holder context with error handling
    * Throws descriptive error if used outside of Provider
    */
   const useStateHolderContext = () => {
     const context = useContext(StateHolderContext)
-
+    
     if (!context) {
       throw new Error(`StateManager not found. Possibly caused by access state outside Provider component.`)
     }
     return context
   }
-
+  
   /**
    * Sets initial state value for SSR hydration or component initialization
    *
@@ -205,7 +208,7 @@ export function createStateManager<State extends Record<string | number, unknown
     // Directly assign to maintain object reference for React optimization
     stateValue = initialStateValue as State
   }
-
+  
   /**
    * Validates that compute functions are pure to prevent infinite render loops
    *
@@ -238,7 +241,7 @@ export function createStateManager<State extends Record<string | number, unknown
       throw new Error(VALIDATOR_ERROR_MESSAGE)
     }
   }
-
+  
   /**
    * Core state management hook that provides subscription, state access, and state updates
    *
@@ -264,10 +267,10 @@ export function createStateManager<State extends Record<string | number, unknown
   } {
     // Apply initial state if provided
     if (initialState) setInitialState(initialState)
-
+    
     // Ref to hold current state value (prevents stale closures)
     const stateRef = useRef(stateValue)
-
+    
     /**
      * Gets current state value with optional cloning for immutability
      * @param clone - Whether to deep clone the state (default: true)
@@ -276,10 +279,10 @@ export function createStateManager<State extends Record<string | number, unknown
       (clone: boolean = true) => (clone ? deepClone(stateRef.current) : stateRef.current),
       []
     )
-
+    
     // Set of all React components subscribed to state changes
     const subscribers = useRef(new Set<() => void>())
-
+    
     /**
      * Notifies all subscribed React components that state has changed
      * Triggers React re-renders only for components that use affected state slices
@@ -289,7 +292,7 @@ export function createStateManager<State extends Record<string | number, unknown
         subscribeCallback()
       }
     }
-
+    
     /**
      * Subscribe/unsubscribe mechanism for React's useSyncExternalStore
      * Automatically manages component lifecycle and prevents memory leaks
@@ -297,11 +300,11 @@ export function createStateManager<State extends Record<string | number, unknown
     const subscribe = useCallback((callback: () => void) => {
       // Add new subscriber
       subscribers.current.add(callback)
-
+      
       // Return cleanup function to remove subscriber
       return () => subscribers.current.delete(callback)
     }, [])
-
+    
     /**
      * State update function with Immer integration and undo capability
      *
@@ -335,29 +338,29 @@ export function createStateManager<State extends Record<string | number, unknown
             (draft as any)[key] = deepClone(updater[key])
           })
         }
-
+      
       // Use Immer to create new state and capture patches for undo functionality
       const [newPartialStateValue, , inversePatches] = produceWithPatches(stateRef.current, receiptFn)
-
+      
       /**
        * Revert function that can undo the state changes
        * Useful for optimistic updates or error handling
        */
       const revertChanges = () => {
         const reverted = applyPatches(stateRef.current, inversePatches)
-        stateRef.current = { ...stateRef.current, ...reverted }
+        stateRef.current = {...stateRef.current, ...reverted}
         emitChanges()
       }
-
+      
       // Apply new state changes
-      stateRef.current = { ...stateRef.current, ...newPartialStateValue }
-
+      stateRef.current = {...stateRef.current, ...newPartialStateValue}
+      
       // Notify all subscribers of state change
       emitChanges()
-
+      
       return revertChanges
     }, []);
-
+    
     return {
       getStateValue,
       subscribe,
@@ -365,7 +368,7 @@ export function createStateManager<State extends Record<string | number, unknown
       emitChanges
     }
   }
-
+  
   /**
    * React component that provides state context to child components
    * Memoized to prevent unnecessary re-renders when children or initialState haven't changed
@@ -383,7 +386,7 @@ export function createStateManager<State extends Record<string | number, unknown
     },
     comparePropsForMemo(['children', 'initialState'])
   )
-
+  
   /**
    * Creates a state snapshot getter function with compute capability
    * Allows accessing current state synchronously without subscribing to changes
@@ -398,10 +401,10 @@ export function createStateManager<State extends Record<string | number, unknown
       const currentState = context.getStateValue() as State
       return compute(currentState)
     }
-
+    
     return getClonedStateSnapshot
   }
-
+  
   /**
    * Primary hook for accessing and updating context state with computed values
    *
@@ -439,30 +442,30 @@ export function createStateManager<State extends Record<string | number, unknown
     compute: TComputeFunction<ComputedValue> = defaultComputeFunction<TDeepReadonly<State>, ComputedValue>
   ): [TDeepMutable<ComputedValue>, TStateSetter, TStateSnapshotGetter] {
     const context = useStateHolderContext()
-
+    
     // Create unique cache IDs for this hook instance (prevents cache collisions)
     const cacheId = useRef(createHookCacheIds())
-
+    
     // Memoization helper for performance optimization
     const memoizeStateValue = (val: unknown, id: symbol) => cache(val, id, cacheId.current.stateInstance)
-
+    
     // Cleanup cache when component unmounts
     useEffect(() => {
       return clearCache(cacheId.current.stateInstance)
     }, [])
-
+    
     // Snapshot function for useSyncExternalStore
     const getSnapshot = () =>
       memoizeStateValue(compute(context.getStateValue() as TDeepReadonly<State>), cacheId.current.getSnapshotFunction)
-
+    
     // Subscribe to state changes and get computed value
     const state = useSyncExternalStore(context.subscribe, getSnapshot, () =>
       memoizeStateValue(compute(stateValue as TDeepReadonly<State>), cacheId.current.snapshotInstance)
     )
-
+    
     return [state as TDeepMutable<ComputedValue>, context.setState, constructStateSnapshotGetter(context)]
   }
-
+  
   /**
    * Hook for accessing computed state values without state update capability
    *
@@ -487,30 +490,30 @@ export function createStateManager<State extends Record<string | number, unknown
     compute: TComputeFunction<ComputedValue> = defaultComputeFunction<TDeepReadonly<State>, ComputedValue>
   ): TDeepMutable<ComputedValue> {
     const context = useStateHolderContext()
-
+    
     const cacheId = useRef(createHookCacheIds())
-
+    
     const memoizeStateValue = useCallback(
       (val: unknown, id: string) => cache(val, id, cacheId.current.stateInstance),
       []
     )
-
+    
     // Cleanup cache when component unmounts
     useEffect(() => {
       return clearCache(cacheId.current.stateInstance)
     }, [])
-
+    
     // Validate compute function purity to prevent infinite renders
     validateComputeFunctionPurity(context.getStateValue(), compute, 'computeFunction', cacheId.current.stateInstance)
-
+    
     const getSnapshot = () =>
       memoizeStateValue(compute(context.getStateValue() as TDeepReadonly<State>), 'getSnapshotWithComputeFunction')
-
+    
     return useSyncExternalStore(context.subscribe, getSnapshot, () =>
       memoizeStateValue(compute(stateValue as TDeepReadonly<State>), 'hasComputeFunctionSnapshot')
     ) as TDeepMutable<ReturnType<TComputeFunction<ComputedValue>>>
   }
-
+  
   /**
    * Hook that provides only state update functionality
    *
@@ -537,7 +540,7 @@ export function createStateManager<State extends Record<string | number, unknown
   function useSetState(): TStateSetter {
     return useStateHolderContext().setState
   }
-
+  
   /**
    * [Experimental] Component that synchronizes external props to internal state
    *
@@ -567,7 +570,7 @@ export function createStateManager<State extends Record<string | number, unknown
   }) {
     const firstLoaded = useRef(false)
     const setState = useSetState()
-
+    
     useEffect(() => {
       // Skip first render to avoid initial sync
       if (!firstLoaded.current) {
@@ -579,10 +582,10 @@ export function createStateManager<State extends Record<string | number, unknown
       }
       setState((state) => updateStateOnDataChanged(state, data))
     }, [updateStateOnDataChanged, data])
-
+    
     return null
   }
-
+  
   /**
    * Higher-Order Component that wraps components with Provider
    *
@@ -640,13 +643,13 @@ export function createStateManager<State extends Record<string | number, unknown
     return forwardRef<unknown, ComponentProps>((componentProps: PropsWithoutRef<ComponentProps>, ref) => {
       return (
         <Provider initialState={config.initialState?.(componentProps)}>
-          <StateSynchronizer updateStateOnDataChanged={config.bindPropToState} data={componentProps} />
-          <WrappedComponent {...(componentProps as ComponentProps)} ref={ref} />
+          <StateSynchronizer updateStateOnDataChanged={config.bindPropToState} data={componentProps}/>
+          <WrappedComponent {...(componentProps as ComponentProps)} ref={ref}/>
         </Provider>
       )
     })
   }
-
+  
   /**
    * Hook that provides state snapshot getter functionality
    *
@@ -674,7 +677,7 @@ export function createStateManager<State extends Record<string | number, unknown
     const context = useStateHolderContext()
     return constructStateSnapshotGetter(context)
   }
-
+  
   // Return all public APIs
   return {
     /** React component to provide state context */
@@ -693,4 +696,3 @@ export function createStateManager<State extends Record<string | number, unknown
     withProvider,
   }
 }
-
