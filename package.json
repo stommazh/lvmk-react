@@ -58,11 +58,11 @@
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/stommazh/lvmk-react.git"
   },
-  "homepage": "",
+  "homepage": "https://github.com/stommazh/lvmk-react#readme",
   "bugs": {
-    "url": ""
+    "url": "https://github.com/stommazh/lvmk-react/issues"
   },
   "dependencies": {
     "immer": "^10.1.1"
