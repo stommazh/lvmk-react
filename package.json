@@ -1,12 +1,15 @@
 {
   "name": "@lvmk/react",
-  "version": "1.0.2",
+  "version": "1.0.1",
   "description": "React hooks and utility functions",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
