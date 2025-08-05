@@ -13,17 +13,17 @@ npm install @lvmk/react
 ```tsx
 import { createStateManager } from '@lvmk/react'
 
-// 1. Define your state shape
+// 1. Define state shape
 interface AppState {
   user: { name: string } | null
   theme: 'light' | 'dark'
   todos: Array<{ id: string; text: string; done: boolean }>
 }
 
-// 2. Create your state manager
+// 2. Create state manager
 const { Provider, useState } = createStateManager<AppState>()
 
-// 3. Wrap your app
+// 3. Wrap app with state provider
 function App() {
   return (
     <Provider initialState={{ user: null, theme: 'light', todos: [] }}>
@@ -583,40 +583,3 @@ const greeting = t(
 
 ---
 
-### Advanced Features
-
-#### Optimistic Updates
-
-All state updates return a revert function for easy optimistic updates:
-
-```tsx
-const addTodo = async (text: string) => {
-  // Update UI immediately
-  const revert = setState(draft => {
-    draft.todos.push({ id: Date.now().toString(), text, done: false })
-  })
-  
-  try {
-    await api.createTodo(text)
-  } catch (error) {
-    revert() // Automatically revert on error
-    showError('Failed to create todo')
-  }
-}
-```
-
-#### Translation Interpolation
-
-Support for variable replacement in translations:
-
-```tsx
-// Translation with placeholders
-const message = { 
-  en: "Hello {name}, you have {count} messages",
-  es: "Hola {name}, tienes {count} mensajes" 
-}
-
-// Use with replacements
-const greeting = t(message, { name: "John", count: 5 })
-// Returns: "Hello John, you have 5 messages"
-```
