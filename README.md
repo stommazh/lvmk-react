@@ -107,13 +107,10 @@ async function RootLayout({ children }) {
 
 ### 🎯 Fine-grained Rendering
 
-Components only re-render when the specific state slice they use changes. The library automatically handles complex objects and arrays in computed state, so you don't need to worry about reference equality issues.
+Components only re-render when the value of computed state changes, not by reference (worry-free of non-primitive value).
 
 ```tsx
-// ✅ Simple property access - re-renders only when todos array value changes (not the array/object reference)
-const [todos] = useState(state => state.todos)
-
-// ✅ Complex computed object - re-renders only when relevant data changes
+// ✅ Re-renders only when relevant primitive values changes
 const [userStats] = useState(state => ({
   name: state.user?.name || 'Guest',
   isLoggedIn: !!state.user,
