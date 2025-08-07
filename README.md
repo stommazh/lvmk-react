@@ -9,7 +9,7 @@ npm install @lvmk/react
 ## Features
 
 ### 🗃️ State Management
-Fine-grained reactive state management.
+Fine-grained reactive and cross-component state management.
 
 ### 🌐 Translation  
 Type-safe internationalization with reactive state language switching.
@@ -44,7 +44,7 @@ export const {
  * App.tsx
  * */
 
-// 3. Wrap component in state provider
+// 3. Wrap component in state provider. All components inside this provider will have access to the state.
 function App() {
   return (
     <Provider initialState={{ user: null, theme: 'light', todos: [] }}>
