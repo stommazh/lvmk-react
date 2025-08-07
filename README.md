@@ -1,29 +1,42 @@
 # @lvmk/react
-
-State management + internationalization with **fine-grained rendering**, **strong TypeScript support** and **SSR ready**.
-
+Collection of React utilities
 ## Installation
 
 ```bash
 npm install @lvmk/react
 ```
 
-## State Management
+## Features
+
+### 🗃️ State Management
+Fine-grained reactive state management.
+
+### 🌐 Translation  
+Type-safe internationalization with reactive state language switching.
+
+---
+
+## 🗃️ State Management
 
 ```tsx
 import { createStateManager } from '@lvmk/react'
 
-// 1. Define state shape
-interface AppState {
-  user: { name: string } | null
+// 1. Define how global component's state should look like
+interface TodoState {
   theme: 'light' | 'dark'
   todos: Array<{ id: string; text: string; done: boolean }>
 }
 
-// 2. Create state manager
-const { Provider, useState } = createStateManager<AppState>()
+// 2. Create, rename and expose state managment functions
+// add 'use client' on top of this file if you are using Next.js
+const { 
+  Provider, 
+  useState: useTodoState,
+  useStateValue: useTodoStateValue,
+  useSnapshot: useTodoSnapshot,
+} = createStateManager<TodoState>()
 
-// 3. Wrap app with state provider
+// 3. Wrap component with state provider
 function App() {
   return (
     <Provider initialState={{ user: null, theme: 'light', todos: [] }}>
@@ -33,13 +46,13 @@ function App() {
   )
 }
 
-// 4. Use state in components
+// 4. Access state in components
 function TodoList() {
-  // ✨ Only re-renders when todos change, not when theme changes
-  const [todos, setState] = useState(state => state.todos)
+  const [todos, setState] = useTodoState(state => state.todos)
   
   const addTodo = (text: string) => {
     setState(draft => {
+      // mutate state directly using Immer draft, no need for spread operator
       draft.todos.push({ id: Date.now().toString(), text, done: false })
     })
   }
@@ -53,8 +66,7 @@ function TodoList() {
 }
 
 function ThemeToggle() {
-  // ✨ Only re-renders when theme changes, not when todos change
-  const [theme, setState] = useState(state => state.theme)
+  const [theme, setState] = useTodoState(state => state.theme)
   
   return (
     <button onClick={() => setState(draft => { 
@@ -64,36 +76,19 @@ function ThemeToggle() {
     </button>
   )
 }
-
-// ⚠️ NOT RECOMMENDED: Accessing entire state
-function FullStateComponent() {
-  // This will re-render whenever ANY part of state changes
-  // Use only when you truly need all state properties
-  const [state, setState] = useState(state => state)
-  
-  return (
-    <div>
-      <p>User: {state.user?.name || 'Guest'}</p>
-      <p>Theme: {state.theme}</p>
-      <p>Todo count: {state.todos.length}</p>
-    </div>
-  )
-}
 ```
 
-
 ### Server-Side Rendering (Next.js)
-
+State data can be initialed on the server for SSR support.
 ```tsx
-// app/layout.tsx
+// app.tsx
 import { cookies } from 'next/headers'
 
-async function RootLayout({ children }) {
+async function App({ children }) {
   const cookieStore = await cookies()
   const initialState = {
-    user: await fetchUser(),
-    theme: cookieStore.get('theme')?.value || 'light',
-    locale: cookieStore.get('locale')?.value || 'en'
+    todos: await api.get('/todos'), // Fetch todos from API
+    theme: cookieStore.get('theme')?.value || 'light'
   }
   
   return (
@@ -105,88 +100,32 @@ async function RootLayout({ children }) {
 ```
 
 
-### 🎯 Fine-grained Rendering
+### 👉 What this state management library offers
+#### 🎯 Fine-grained rendering with `compute` functions
+Customize the shape of sliced state value with `compute` function passed into `useState`, all at one place.
 
-Components only re-render when the value of computed state changes, not by reference (worry-free of non-primitive value).
+Computed values (both primitive and non-primitive) are automatically memoized, preventing unnecessary re-renders when unrelated state changes.
 
 ```tsx
-// ✅ Re-renders only when relevant primitive values changes
-const [userStats] = useState(state => ({
-  name: state.user?.name || 'Guest',
-  isLoggedIn: !!state.user,
-  totalTodos: state.todos.length,
+// ✅ Re-renders only when primitive values changes, not by object/array reference
+const todoStats = useTodoStateValue(state => ({
   completedTodos: state.todos.filter(todo => todo.done).length,
-  completionRate: state.todos.length > 0 ? 
-    (state.todos.filter(todo => todo.done).length / state.todos.length) * 100 : 0
+  completionRate: state.todos.length > 0 ?
+          (state.todos.filter(todo => todo.done).length / state.todos.length) * 100 : 0
 }))
 
-// ✅ Complex computed array - re-renders only when todos or filter changes
-// No need to worry about array reference equality
-const [filteredTodos] = useState(state => 
-  state.todos
-    .filter(todo => state.filter === 'completed' ? todo.done : !todo.done)
-    .map(todo => ({
-      ...todo,
-      displayText: `${todo.text} (${todo.done ? 'Done' : 'Pending'})`
-    }))
-)
-
-// ✅ Nested object computation - automatic memoization handles complexity
-const [dashboardData] = useState(state => ({
-  user: {
-    profile: state.user,
-    preferences: { theme: state.theme }
-  },
-  todos: {
-    active: state.todos.filter(t => !t.done),
-    completed: state.todos.filter(t => t.done),
-    summary: {
-      total: state.todos.length,
-      progress: state.todos.length > 0 ? 
-        Math.round((state.todos.filter(t => t.done).length / state.todos.length) * 100) : 0
-    }
-  }
-}))
+return  <div>
+          <p>Completed Todos: {todoStats.completedTodos}</p>
+          <p>Completion Rate: {todoStats.completionRate.toFixed(2)}%</p>
+        </div>
 ```
 
-**🔑 Automatic Optimization:** The library handles deep value equality check for complex objects/arrays and has built-in caching prevents unnecessary recalculations. Components only update when their specific computed values change
-
-### ✨ Key Benefits
-
-#### 1. **Custom Selector Functions**
-The return value of the selector function passed to `useState` becomes the first value of the array, allowing you to customize the shape of values you want to extract or compute from the state, instead of using multiple `useState` calls:
-
-```tsx
-// Extract and compute specific values
-const [userInfo, setState] = useState(state => ({
-  name: state.user?.name || 'Guest',
-  isLoggedIn: !!state.user,
-  todoCount: state.todos.length,
-  completedTodos: state.todos.filter(todo => todo.done).length
-}))
-
-// Use computed values directly
-return (
-  <div>
-    <h1>Welcome, {userInfo.name}!</h1>
-    <p>You have {userInfo.todoCount} todos ({userInfo.completedTodos} completed)</p>
-  </div>
-)
-```
-
-#### 2. **Specialized Hooks**
-Besides `useState`, there are other hooks designed for specific purposes:
-
-- **`useSetState`** - Only provides the setState function, no value subscription
-- **`useStateValue`** - Only provides the state value, no setState function  
-- **`useSnapshot`** - Gets a snapshot of the current state without subscribing to changes
-
-#### 3. **Access to Latest State with getSnapshot**
-The third value returned from `useState` is `getSnapshot`, which returns the latest value of the state when called:
+#### 🕒 Access to the latest state value with `getSnapshot`
 
 ```tsx
 function AsyncComponent() {
-  const [todos, setState, getSnapshot] = useState(state => state.todos)
+  const [todos, setState, getSnapshot] = useTodoState(state => state.todos)
+  // or const getSnapshot = useTodoSnapshot()
   
   const handleAsyncOperation = async () => {
     // Start with current todos
@@ -196,7 +135,7 @@ function AsyncComponent() {
     await new Promise(resolve => setTimeout(resolve, 1000))
     
     // Get the latest state (might have changed during async operation)
-    const latestTodos = getSnapshot(state => state.todos) // you can acess entire state snapshot by not providing a selector
+    const latestTodos = getSnapshot(state => state.todos) // compute function is optional here
     console.log('Latest todos after delay:', latestTodos)
     
     // Use latest state for operation
@@ -221,20 +160,20 @@ function AsyncComponent() {
   )
 }
 ```
-### 💪 Strong TypeScript Support
+#### 🔧 TypeScript Support
 
 Get full IntelliSense and compile-time checks:
 
 ```tsx
-// TypeScript knows the exact shape of your state
-const [userAndTodos] = useState(state => ({
-  user: state.user,     // ✅ TypeScript knows this exists
-  todos: state.todos    // ✅ TypeScript knows this exists
+const { todos } = useTodoStateValue(state => ({
+  todos: state.todos
   // missing: state.xyz  // ❌ TypeScript error - property doesn't exist
 }))
+
+console.log(userAndTodos.user?.name) // 💡 Autocomplete works
 ```
 
-### 🔄 Optimistic Updates Made Easy
+#### 🔄 Optimistic Updates Made Easy
 
 ```tsx
 const addTodo = async (text: string) => {
@@ -252,6 +191,7 @@ const addTodo = async (text: string) => {
 }
 ```
 
+---
 
 ## Translation
 
@@ -259,25 +199,26 @@ const addTodo = async (text: string) => {
 import { defineLocale } from '@lvmk/react'
 
 // 1. Define supported languages
-type Language = 'en' | 'es'
+type Language = 'en' | 'vi'
 const { assertTranslation, createTranslatorHook } = defineLocale<Language>()
 
-// 2. Define translations with full type safety
-const messages = assertTranslation({
+// 2. Define translated messages with type-guarded structure
+export const WELCOME_SCREEN_TRANLSATION = assertTranslation({
   welcome: {
     en: "Welcome, name!",
-    es: "¡Bienvenido, name!",
+    vi: "Chào mừng, name!",
+    // es: "¡Bienvenido, name!" // Typescript will error if you try to add unsupported language or missing translation
   },
   button: {
-    save: { en: "Save", es: "Guardar" }
+    save: { en: "Save", vi: "Lưu" }
   }
 })
 
 // 3. Create translation hook
-const {useTranslator} = createTranslatorHook({
-  translation: messages,
+export const {useTranslator} = createTranslatorHook({
+  translation: WELCOME_SCREEN_TRANLSATION,
   usePreferredLanguage: () => {
-    // Get reactive language from your state management
+    // provide current language from your preferred state management
     return useStateValue(state => state.language)
   }
 })
@@ -286,7 +227,7 @@ const {useTranslator} = createTranslatorHook({
 function Welcome({ userName }: { userName: string }) {
   const {
     t, // Translation function
-    d // Strongly typed dictionary of translations
+    d // Strong-typed dictionary of translations, which is WELCOME_SCREEN_TRANLSATION
   } = useTranslator()
   
   return (
@@ -305,7 +246,7 @@ function Welcome({ userName }: { userName: string }) {
 Creates a type-safe state management system with fine-grained rendering and SSR support.
 
 **Parameters:**
-- `instanceId` (optional): Unique identifier for the state manager instance. Useful when you have multiple state managers in the same app.
+- `instanceId` (optional): Unique identifier for the state manager instance. Useful for debugging purpose or when you have multiple state managers in the same app.
 
 **Returns an object with:**
 
@@ -322,45 +263,38 @@ React component that provides state context to child components.
 - `initialState` (optional): Initial state values for server-side rendering or component initialization
 - `children`: React components that will have access to the state
 
-#### useState\<ComputedValue\>(selector)
+> ####  useState\<ComputedValue\>(compute)
 
 Primary hook for accessing and updating state with computed values.
 
-**⚠️ Important: Selector function is required for TypeScript inference and performance optimization.**
+**⚠️ Important: `compute` function is required for TypeScript inference and performance optimization.**
 
 ```tsx
-// ✅ RECOMMENDED: Access specific state slices
-const [todos, setState, getSnapshot] = useState(state => state.todos)
+// ✅ RECOMMENDED: Access specific/customized state slices
 const [todoCount, setState, getSnapshot] = useState(state => state.todos.length)
 
-// ⚠️ NOT RECOMMENDED: Access entire state (causes re-renders for all state changes)
+// ⚠️ USE WITH CAUTION: Access entire state (causes re-renders for all state changes)
 const [state, setState, getSnapshot] = useState(state => state)
 ```
 
 **Parameters:**
-- `selector`: **Required** pure function that selects/computes derived state `(state) => computedValue`
+- `compute`: **Required** pure function that selects/computes derived state `(state) => computedValue`
   - Even for entire state access, you must provide `state => state`
   - This enables TypeScript to infer the correct return type
   - Allows for fine-grained re-rendering optimization
 
 **Returns array with:**
-- `[0] state`: Current state or computed value from selector
-- `[1] setState`: Function to update state (accepts partial state or Immer draft function)
-- `[2] getSnapshot`: Function to get current state snapshot without subscribing
-
-**setState examples:**
+- `[0] computedStateValue`: Returned value from `compute` function
+- `[1] setState`: Function to update state (Mutate state directly using Immer draft function)
 ```tsx
-// Partial state update
-setState({ todos: newTodos })
-
-// Immer draft function (recommended)
 setState(draft => {
   draft.todos.push({ id: '1', text: 'New todo', done: false })
   draft.user.name = 'John'
 })
 ```
+- `[2] getSnapshot`: Function to get current state snapshot without subscribing
 
-#### useStateValue\<ComputedValue\>(selector)
+> #### useStateValue\<ComputedValue\>(compute)
 
 Read-only hook for accessing state with computed values. More performant than `useState` when you don't need to update state.
 
@@ -374,9 +308,9 @@ const todoCount = useStateValue(state => state.todos.filter(t => !t.done).length
 
 **Returns:** Current state or computed value from selector
 
-#### useSetState()
+> #### useSetState()
 
-Write-only hook that provides only state update functionality. Use when component only needs to update state without reading it.
+Write-only hook that provides only state update functionality. Useful for components that only need to modify state without re-rendering on state changes.
 
 ```tsx
 function AddTodoButton() {
@@ -394,7 +328,7 @@ function AddTodoButton() {
 
 **Returns:** setState function (same as from `useState`)
 
-#### useSnapshot()
+> #### useSnapshot()
 
 Hook for synchronous state snapshot access without subscribing to changes. Useful for imperative state access in event handlers or effects.
 
@@ -413,36 +347,73 @@ function MyComponent() {
 ```
 
 **Returns:** Function to get state snapshots with optional computation:
-- `getSnapshot(selector)`: **Recommended** - Returns computed value from current state
-- `getSnapshot(state => state)`: Returns entire current state (use sparingly)
+- `getSnapshot(compute?)`: Returns computed value from current state
 
-#### withProvider\<ComponentProps\>(component, config?)
+> #### withProvider\<ComponentProps\>(component, config?)
 
-Higher-Order Component that automatically wraps components with the state Provider.
+Higher-Order Component that automatically wraps components with the state Provider and provides state-binding configuration.
 
 ```tsx
-interface TodoListProps {
-  initialTodos: Todo[]
-  filter: FilterType
+// Shape of internal cross-component search bar's state
+interface SearchBarState {
+  theme: 'light' | 'dark'
+  isSearching: boolean
+  keyword: string
 }
 
-const TodoList = withProvider<TodoListProps>(
-  ({ initialTodos, filter }) => {
-    const [todos] = useState(state => state.todos)
-    return <div>{todos.map(todo => <TodoItem key={todo.id} todo={todo} />)}</div>
+// What properties that search bar component should accept
+interface SearchBarProps {
+  theme?: 'light' | 'dark'
+}
+
+const SearchBar = withProvider<SearchBarState>(
+  // Actual inlined SearchBar component
+  (props: SearchBarProps) => {
+    
+    const [state, setState] = useState(state => ({
+      theme: state.theme,
+      isSearching: state.isSearching,
+      keyword: state.keyword
+    }))
+    
+    return (
+      <div className={`search-bar ${state.theme}`}>
+        <input
+          type="text"
+          value={state.keyword}
+          onChange={(e) => setState(draft => { draft.keyword = e.target.value })}
+          placeholder="Search..."
+        />
+        <button onClick={() => setState(draft => { draft.isSearching = !draft.isSearching })}>
+          {state.isSearching ? 'Stop' : 'Start'} Search
+        </button>
+      </div>
+    )
   },
+  // [Optional] Configuration object
   {
-    // Transform props to initial state
-    initialState: (props) => ({
-      todos: props.initialTodos,
-      filter: props.filter
+    // How state should be initialized
+    initialState: (props: SearchBarProps) => ({
+      keyword: '',
+      theme: props.theme || 'light',
+      isSearching: false,
     }),
-    // Sync prop changes to state
-    bindPropToState: (draft, props) => {
-      draft.filter = props.filter
+    // [Optional] How state should be updated/synced when props change
+    bindPropToState: (draft: SearchBarState, props: SearchBarProps) => {
+      draft.theme = props.theme || 'light' // update searchbar theme when prop changes
     }
   }
 )
+
+// Consume SearchBar component in your app
+function App() {
+    return (
+        <main>
+          <SearchBar theme="dark" />
+          {/* Other components */}
+        </main>
+  )
+}
 ```
 
 **Parameters:**
@@ -453,7 +424,7 @@ const TodoList = withProvider<TodoListProps>(
 
 **Returns:** Component wrapped with Provider
 
-#### StateSynchronizer
+> #### ⚠️ [Experimental] StateSynchronizer
 
 Component for syncing external props to internal state. Useful for keeping state synchronized with changing props.
 
@@ -473,7 +444,7 @@ Component for syncing external props to internal state. Useful for keeping state
 
 ---
 
-### defineLocale\<Languages\>()
+### 🌐 Translation
 
 Creates type-safe internationalization utilities for the specified language union type.
 
@@ -484,12 +455,12 @@ const { assertTranslation, createTranslatorHook, createTranslator } = defineLoca
 
 **Returns an object with:**
 
-#### assertTranslation(translations)
+> #### assertTranslation(translations)
 
-Type assertion helper for translation definitions with compile-time validation.
+Type assertion helper for translation definitions with compile-time validation. It ensures that all translations are provided for each language.
 
 ```tsx
-const translations = assertTranslation({
+const APP_TRANSLATION = assertTranslation({
   auth: {
     login: { en: "Login", es: "Iniciar sesión", fr: "Connexion" },
     logout: { en: "Logout", es: "Cerrar sesión", fr: "Déconnexion" }
@@ -506,15 +477,15 @@ const translations = assertTranslation({
 
 **Returns:** Deeply readonly version of translations for safe usage
 
-#### createTranslatorHook(options)
+> #### createTranslatorHook(options)
 
 Creates React hooks for translation management with namespace selection.
 
 ```tsx
 const { useTranslator, createNamespacedTranslatorHook } = createTranslatorHook({
-  translation: translations,
+  translation: APP_TRANSLATION,
   usePreferredLanguage: () => {
-    const [language] = useState(state => state.language)
+    const language = useCurrentLanguage()
     return language
   }
 })
@@ -538,10 +509,10 @@ Flexible translation hook with multiple usage patterns:
 const { t, d, language } = useTranslator()
 
 // Get specific namespace
-const { t, d, language } = useTranslator('auth')
+const { t, d, language } = useTranslator('auth') // d is APP_TRANSLATION.auth
 
 // Get multiple namespaces
-const { t, d, language } = useTranslator(['auth', 'navigation'])
+const { t, d, language } = useTranslator(['auth', 'navigation']) // d is {auth: APP_TRANSLATION.auth, navigation: APP_TRANSLATION.navigation}
 
 // Custom transformation
 const { t, d, language } = useTranslator(trans => ({
@@ -560,23 +531,26 @@ const { t, d, language } = useTranslator(trans => ({
 - `d`: Selected/Computed translation dictionary (type-safe)
 - `language`: Current language
 
-#### createTranslator\<Language\>(currentLanguage)
+> #### createTranslator\<Language\>(currentLanguage)
 
-Creates a translation function for non-React usage or server-side rendering.
+Creates a translation function for static usage. Useful for server-side rendering.
 
 ```tsx
-const t = createTranslator('en')
-const greeting = t(
-  { en: "Hello {name}!", es: "¡Hola {name}!" },
-  { name: "John" }
-)
-// Returns: "Hello John!"
+
+const getServerTranslator = async () => {
+  return createTranslator(await cookieStore.get('language')?.value || 'en')
+}
+
+const t = await getServerTranslator()
+
+const ONBARDING_TRANSLATION = t({
+  welcome: "Welcome, username!",
+})
+
+const greeting = t(ONBARDING_TRANSLATION.welcome, { username: "John" }) // "Welcome, John!"
 ```
 
 **Parameters:**
 - `currentLanguage`: The language to translate to
 
 **Returns:** Translation function that processes LocalizedString objects with optional interpolation
-
----
-
