@@ -21,22 +21,30 @@ Type-safe internationalization with reactive state language switching.
 ```tsx
 import { createStateManager } from '@lvmk/react'
 
+/**
+ * app-state.ts
+ * */
+'use client' // Required if you are using Next.js
+
 // 1. Define how global component's state should look like
-interface TodoState {
+export interface TodoState {
   theme: 'light' | 'dark'
   todos: Array<{ id: string; text: string; done: boolean }>
 }
 
 // 2. Create, rename and expose state managment functions
-// add 'use client' on top of this file if you are using Next.js
-const { 
+export const { 
   Provider, 
   useState: useTodoState,
   useStateValue: useTodoStateValue,
   useSnapshot: useTodoSnapshot,
 } = createStateManager<TodoState>()
 
-// 3. Wrap component with state provider
+/** 
+ * App.tsx
+ * */
+
+// 3. Wrap component in state provider
 function App() {
   return (
     <Provider initialState={{ user: null, theme: 'light', todos: [] }}>
@@ -47,6 +55,11 @@ function App() {
 }
 
 // 4. Access state in components
+
+/**
+ * TodoList.tsx
+ * */
+
 function TodoList() {
   const [todos, setState] = useTodoState(state => state.todos)
   
@@ -64,6 +77,10 @@ function TodoList() {
     </div>
   )
 }
+
+/**
+ * ThemeToggle.tsx
+ * */
 
 function ThemeToggle() {
   const [theme, setState] = useTodoState(state => state.theme)
@@ -99,10 +116,11 @@ async function App({ children }) {
 }
 ```
 
-
-### 👉 What this state management library offers
+---
+ 👉 What this state management library offers
+---
 #### 🎯 Fine-grained rendering with `compute` functions
-Customize the shape of sliced state value with `compute` function passed into `useState`, all at one place.
+Customize derived state value with `compute` inside `useState`, all at one place.
 
 Computed values (both primitive and non-primitive) are automatically memoized, preventing unnecessary re-renders when unrelated state changes.
 
