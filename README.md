@@ -9,22 +9,17 @@ npm install @lvmk/react
 
 ## Features
 
-### [🗃️ State Management](#️-state-management)
+### [🗃️ State Management](#state)
 Fine-grained reactive and cross-component state management.
 
-### [🌐 Translation](#-translation)  
+### [🌐 Translation](#translation)  
 Type-safe internationalization with reactive state language switching.
 
----
-## Upcoming
----
+### [📢 Event Management](#events)
+Type-safe event system for cross-component communication with async support.
 
-### Event Management
-Send and listen to events across components.
-
----
-
-## 🗃️ State Management
+<a name="state" id="state"></a>
+## 🗃 State Management
 
 ```tsx
 import { createStateManager } from '@lvmk/react'
@@ -264,6 +259,160 @@ function Welcome({ userName }: { userName: string }) {
   )
 }
 ```
+
+
+---
+
+<a name="events" id="events"></a>
+## 📢 Event Management
+
+Send and listen to events across components with full TypeScript support and async handling.
+
+- 🔒 **Type Safety**: Full TypeScript support with compile-time type checking
+- 🧹 **Automatic Cleanup**: React hooks automatically clean up event listeners
+- ⚡ **Async Support**: Built-in support for async event handlers
+- 🛑 **Abort Signals**: Cancellation support for long-running operations
+- 🔄 **Concurrent Handling**: Multiple listeners can handle the same event
+
+### Event Types
+The event system supports three types of events:
+
+1. **Function Events**: Events that expect a function handler with specific parameters and return types
+2. **Data Events**: Events that pass data objects to listeners
+3. **No-parameter Events**: Events that don't require any data
+
+### Usage
+
+Basically, you define your events and their types, then use the provided hooks to listen and emit events.
+
+```typescript
+import { createEventMethod } from '@lvmk/react'
+
+type AppEvent = {
+  beforeSwitchProfile: (data: { profileId: string }) => Promise<void | { canSwitch: boolean }>
+  onProfileSwitched: { profileId: string }
+  reloadCandidateList: void
+}
+
+export const {
+  useEventListener, 
+  emitEvent
+} = createEventMethod<AppEvent>()
+```
+
+
+### Emitting Events
+
+Emit events from anywhere in your application (outside of React components is also supported):
+
+```typescript
+async function switchProfile() {
+  const profileId = '123'
+  // Emit async event and wait for all responses from listeners
+  const responses = await emitEvent('beforeSwitchProfile', { profileId })
+  
+  const isProfileSwitchingDeclined = responses.some(
+    (answer) => answer && !answer.canSwitch
+  )
+  
+  if (isProfileSwitchingDeclined) {
+    return // Cancel the switch
+  }
+  
+  // Proceed with profile switch
+  await performProfileSwitch(profileId)
+  
+  // Notify listeners that switch completed with profileId
+  await emitEvent('onProfileSwitched', { 
+    profileId 
+  })
+}
+
+// Emit no-parameter events
+  await emitEvent('reloadCandidateList')
+```
+
+### Listening to Events
+
+Use the `useEventListener` hook in your React components:
+
+```typescript
+  // Listen to async events with return values
+  useEventListener('beforeSwitchProfile', async (data) => {
+    if (!isFormDirty) {
+      return { canSwitch: true };
+    }
+    const canSwitch = window.confirm(t(d.unload_prompt))
+    return { canSwitch }
+  })
+
+  // Listen to data events
+  useEventListener('onProfileSwitched', (data) => {
+    console.log('Profile switched to:', data.profileId)
+    // Handle profile switch
+  })
+
+  // Listen to events with empty data and ability to cancel operation with signal
+  useEventListener('reloadCandidateList', (signal) => {
+    try {
+      fetch('/api/candidates', {
+        signal: signal
+      })  
+    } catch (e) {
+      if (error.name === 'AbortError') console.log('Operation was cancelled')
+      throw error
+    }
+  })
+```
+
+### Advanced Usage
+
+#### Custom Return Types
+
+```typescript
+type TAdvancedEvents = {
+  validateForm: (formData: FormData) => Promise<{ isValid: boolean, errors?: string[] }>
+  processPayment: (amount: number) => Promise<{ success: boolean, transactionId?: string }>
+}
+
+const { useEventListener, emitEvent } = createEventMethod<TAdvancedEvents>()
+
+// Listener with complex return type
+useEventListener('validateForm', async (formData) => {
+  const errors = await validateFormData(formData)
+  return { 
+    isValid: errors.length === 0, 
+    errors: errors.length > 0 ? errors : undefined 
+  }
+})
+
+// Emit and handle multiple responses
+const validationResults = await emitEvent('validateForm', formData)
+const allValid = validationResults.every(result => result.isValid)
+```
+
+#### Error Handling
+
+```typescript
+useEventListener('processPayment', async (amount, signal) => {
+  try {
+    // Check if operation was cancelled
+    if (signal?.aborted) {
+      throw new Error('Operation cancelled')
+    }
+    
+    const result = await paymentService.process(amount)
+    return { success: true, transactionId: result.id }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      return // Silently handle cancellation
+    }
+    throw error // Re-throw other errors
+  }
+})
+```
+
+
 
 ## API Reference
 

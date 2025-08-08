@@ -16,6 +16,7 @@ export default defineConfig({
         index: resolve(__dirname, 'src/index.ts'),
         'libs/createStateManager': resolve(__dirname, 'src/libs/createStateManager.tsx'),
         'libs/createTranslator': resolve(__dirname, 'src/libs/createTranslator.ts'),
+        'libs/createEventMethod': resolve(__dirname, 'src/libs/createEventMethod.ts'),
         'helpers/index': resolve(__dirname, 'src/helpers/index.ts')
       },
       formats: ['es']
