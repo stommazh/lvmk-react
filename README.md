@@ -1,5 +1,6 @@
 # @lvmk/react
 Collection of React utilities
+
 ## Installation
 
 ```bash
@@ -8,11 +9,18 @@ npm install @lvmk/react
 
 ## Features
 
-### 🗃️ State Management
+### [🗃️ State Management](#️-state-management)
 Fine-grained reactive and cross-component state management.
 
-### 🌐 Translation  
+### [🌐 Translation](#-translation)  
 Type-safe internationalization with reactive state language switching.
+
+---
+## Upcoming
+---
+
+### Event Management
+Send and listen to events across components.
 
 ---
 
@@ -178,7 +186,7 @@ function AsyncComponent() {
   )
 }
 ```
-#### 🔧 TypeScript Support
+#### �? TypeScript Support
 
 Get full IntelliSense and compile-time checks:
 
